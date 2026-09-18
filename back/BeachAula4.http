@@ -1,0 +1,25 @@
+@BeachAula4_HostAddress = http://localhost:5289
+
+
+POST {{BeachAula4_HostAddress}}/api/quadras
+Content-Type: application/json
+
+{
+  "name":"Quadra Basica" 
+}
+###
+
+GET {{BeachAula4_HostAddress}}/api/quadras
+Accept: application/json
+
+###
+
+POST {{BeachAula4_HostAddress}}/api/reservas
+Content-Type: application/json
+
+{
+  "ClienteId": 1,
+  "QuadraId": 1,
+  "Inicio":"2026-09-12T10:00:00",
+  "Fim":"2026-09-12T11:00:00"
+}
