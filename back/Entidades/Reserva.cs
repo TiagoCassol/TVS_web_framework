@@ -10,7 +10,7 @@
         public int Status { get; set; } = 0;
         public decimal Valor { get; set; } = 0;
 
-        public Reserva(int clienteId, int quadraId, DateTime inicio, DateTime fim)
+        public CriarReserva(int clienteId, int quadraId, DateTime inicio, DateTime fim)
         {
             if(fim <= inicio)
             {
@@ -28,6 +28,19 @@
             Inicio = inicio;
             Fim = fim;
             Valor = 50;
+        }
+        public CancelarReserva()
+        {
+            Status = 3;
+        }
+
+        public ConsultarDisponibilidade()
+        {
+            if(Status == 0)
+            {
+                return true;
+            }
+            return false;
         }
     }
 }
