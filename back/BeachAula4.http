@@ -1,25 +1,32 @@
 @BeachAula4_HostAddress = http://localhost:5289
+@BookingDate = 2026-10-06
 
-
-POST {{BeachAula4_HostAddress}}/api/quadras
+### Register a customer
+POST {{BeachAula4_HostAddress}}/api/clientes
 Content-Type: application/json
 
 {
-  "name":"Quadra Basica" 
+  "name": "Simon Tsui",
+  "email": "simon@example.com",
+  "phone": "+55 11 99999-9999",
+  "tipo": "Associado"
 }
-###
 
+### List courts (the local database already contains courts 1-4)
 GET {{BeachAula4_HostAddress}}/api/quadras
 Accept: application/json
 
-###
+### Check availability and prices for an associate
+GET {{BeachAula4_HostAddress}}/api/quadras/1/disponibilidade?data={{BookingDate}}&duracaoMinutos=60&tipoCliente=Associado
+Accept: application/json
 
+### Create and immediately confirm a reservation
 POST {{BeachAula4_HostAddress}}/api/reservas
 Content-Type: application/json
 
 {
-  "ClienteId": 1,
-  "QuadraId": 1,
-  "Inicio":"2026-09-12T10:00:00",
-  "Fim":"2026-09-12T11:00:00"
+  "clienteId": 1,
+  "quadraId": 1,
+  "inicio": "{{BookingDate}}T10:00:00-03:00",
+  "fim": "{{BookingDate}}T11:00:00-03:00"
 }
