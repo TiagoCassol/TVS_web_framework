@@ -24,19 +24,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             entity.ToTable("Clientes");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Nome).HasColumnName("Name").HasMaxLength(120).IsRequired();
             entity.Property(x => x.Email).HasMaxLength(254).IsRequired();
-            entity.Property(x => x.Phone).HasMaxLength(32).IsRequired();
-            entity.Property(x => x.Tipo).HasConversion<int>().IsRequired();
+            entity.Property(x => x.Fone).HasColumnName("Phone").HasMaxLength(32).IsRequired();
+            entity.Property(x => x.CPF).HasMaxLength(11);
             entity.Property(x => x.Ativo).IsRequired();
-            entity.HasIndex(x => x.Email).IsUnique();
+            // Keep the legacy NOT NULL SQLite column writable without exposing it in the API.
+            entity.Property<int>("Tipo").HasColumnType("INTEGER").IsRequired();
+            entity.HasIndex(x => x.Email).IsUnique().HasFilter("\"Email\" <> ''");
+            entity.HasIndex(x => x.CPF).IsUnique().HasFilter("\"CPF\" IS NOT NULL");
         });
 
         modelBuilder.Entity<Quadra>(entity =>
         {
             entity.ToTable("Quadras");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Nome).HasColumnName("Name").HasMaxLength(120).IsRequired();
             entity.Property(x => x.Ativa).IsRequired();
         });
 
@@ -71,6 +74,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             if (sqliteException.Message.Contains("Clientes.Email", StringComparison.Ordinal))
                 throw new ConflitoException("Já existe um cliente cadastrado com este e-mail.");
+            if (sqliteException.Message.Contains("Clientes.CPF", StringComparison.Ordinal))
+                throw new ConflitoException("Já existe um cliente cadastrado com este CPF.");
             if (sqliteException.Message.Contains("BOOKING_TIME_CONFLICT", StringComparison.Ordinal))
                 throw new ConflitoException("A quadra já possui uma reserva neste intervalo.");
 

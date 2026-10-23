@@ -3,4 +3,5 @@
   <Project Path="Domain/BeachTennis.Domain.csproj" />
   <Project Path="Application/BeachTennis.Application.csproj" />
   <Project Path="Infrastructure/BeachTennis.Infrastructure.csproj" />
+  <Project Path="Tests/BeachTennis.Tests.csproj" />
 </Solution>

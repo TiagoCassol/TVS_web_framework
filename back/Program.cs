@@ -3,6 +3,7 @@ using BeachAula4.Data;
 using BeachAula4.Infrastructure;
 using BeachAula4.Api;
 using BeachTennis.Application.Contracts;
+using BeachTennis.Application.Errors;
 using BeachTennis.Application.Interfaces;
 using BeachTennis.Application.Services;
 using BeachTennis.Domain.Enums;
@@ -21,24 +22,37 @@ var configuracaoReservas = new ConfiguracaoReservas(
         ?? throw new InvalidOperationException("Reservas:DuracaoMaximaMinutos não foi configurado."),
     reservasConfig.GetValue<int?>("PassoMinutos")
         ?? throw new InvalidOperationException("Reservas:PassoMinutos não foi configurado."),
-    reservasConfig.GetValue<decimal?>("DescontoAssociado")
-        ?? throw new InvalidOperationException("Reservas:DescontoAssociado não foi configurado."),
-    reservasConfig.GetValue<decimal?>("DescontoProfessor")
-        ?? throw new InvalidOperationException("Reservas:DescontoProfessor não foi configurado."),
+    reservasConfig.GetValue<decimal?>("DescontoSocio")
+        ?? throw new InvalidOperationException("Reservas:DescontoSocio não foi configurado."),
+    reservasConfig.GetValue<decimal?>("DescontoAluno")
+        ?? throw new InvalidOperationException("Reservas:DescontoAluno não foi configurado."),
     horarioConfig["FusoHorario"]
         ?? throw new InvalidOperationException("HorarioFuncionamento:FusoHorario não foi configurado."));
 _ = TimeZoneInfo.FindSystemTimeZoneById(configuracaoReservas.FusoHorario);
+
+var autenticacaoConfig = builder.Configuration.GetSection("Autenticacao");
+var configuracaoAutenticacao = new ConfiguracaoAutenticacao(
+    autenticacaoConfig["NomeGestor"]
+        ?? throw new InvalidOperationException("Autenticacao:NomeGestor não foi configurado."),
+    autenticacaoConfig["EmailGestor"]
+        ?? throw new InvalidOperationException("Autenticacao:EmailGestor não foi configurado."),
+    autenticacaoConfig["SenhaGestor"]
+        ?? throw new InvalidOperationException("Autenticacao:SenhaGestor não foi configurado."));
+if (string.IsNullOrWhiteSpace(configuracaoAutenticacao.SenhaGestor))
+    throw new InvalidOperationException("Autenticacao:SenhaGestor não pode ser vazia.");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton(configuracaoReservas);
+builder.Services.AddSingleton(configuracaoAutenticacao);
 builder.Services.AddSingleton(new CalculadoraPreco(configuracaoReservas));
 builder.Services.AddSingleton<IHorarioFuncionamento>(
     HorarioFuncionamento.Carregar(builder.Configuration.GetSection("HorarioFuncionamento")));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ServicoReservas>();
+builder.Services.AddScoped<ServicoAutenticacao>();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
@@ -54,16 +68,22 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 var api = app.MapGroup("/api");
 
+api.MapPost("/auth/login", (LoginRequest request, ServicoAutenticacao autenticacao) =>
+{
+    var usuario = autenticacao.Autenticar(request.Email, request.Senha);
+    return usuario is null ? Results.Unauthorized() : Results.Ok(usuario);
+});
+
 api.MapPost("/clientes", async (
     CriarClienteRequest request,
     ServicoReservas servico,
     CancellationToken cancellationToken) =>
 {
     var cliente = await servico.RegistrarClienteAsync(
-        request.Name,
+        request.Nome,
+        request.CPF,
+        request.Fone,
         request.Email,
-        request.Phone,
-        request.Tipo,
         cancellationToken);
     return Results.Created($"/api/clientes/{cliente.Id}", cliente);
 });
@@ -74,12 +94,18 @@ api.MapGet("/clientes/{id:int}", async (
     CancellationToken cancellationToken) =>
     Results.Ok(await servico.ObterClienteAsync(id, cancellationToken)));
 
+api.MapGet("/clientes", async (
+    string? cpf,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await servico.ListarClientesAsync(cpf, cancellationToken)));
+
 api.MapPost("/quadras", async (
     CriarQuadraRequest request,
     ServicoReservas servico,
     CancellationToken cancellationToken) =>
 {
-    var quadra = await servico.RegistrarQuadraAsync(request.Name, cancellationToken);
+    var quadra = await servico.RegistrarQuadraAsync(request.Nome, cancellationToken);
     return Results.Created($"/api/quadras/{quadra.Id}", quadra);
 });
 
@@ -100,7 +126,7 @@ api.MapGet("/quadras/{quadraId:int}/disponibilidade", async (
         quadraId,
         data,
         duracaoMinutos ?? configuracaoReservas.DuracaoMinimaMinutos,
-        tipoCliente ?? BeachTennis.Domain.Enums.TipoCliente.Avulso,
+        tipoCliente ?? TipoCliente.Padrao,
         cancellationToken);
     return Results.Ok(horarios);
 });
@@ -110,9 +136,12 @@ api.MapPost("/reservas", async (
     ServicoReservas servico,
     CancellationToken cancellationToken) =>
 {
+    var tipoCliente = request.TipoCliente
+        ?? throw new ValidacaoException("O tipoCliente é obrigatório.");
     var reserva = await servico.CriarReservaAsync(
         request.ClienteId,
         request.QuadraId,
+        tipoCliente,
         request.Inicio,
         request.Fim,
         cancellationToken);
@@ -126,15 +155,11 @@ api.MapGet("/reservas/{id:int}", async (
     Results.Ok(await servico.ObterReservaAsync(id, cancellationToken)));
 
 api.MapGet("/reservas", async (
+    DateOnly? data,
     int? clienteId,
     ServicoReservas servico,
     CancellationToken cancellationToken) =>
-{
-    if (clienteId is null or <= 0)
-        throw new BeachTennis.Application.Errors.ValidacaoException(
-            "Informe um clienteId válido para consultar as reservas.");
-    return Results.Ok(await servico.ListarReservasDoClienteAsync(clienteId.Value, cancellationToken));
-});
+    Results.Ok(await servico.ListarReservasAsync(data, clienteId, cancellationToken)));
 
 api.MapPost("/reservas/{id:int}/cancelamento", async (
     int id,

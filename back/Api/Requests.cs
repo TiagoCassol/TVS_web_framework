@@ -1,17 +1,21 @@
+using System.Text.Json.Serialization;
 using BeachTennis.Domain.Enums;
 
 namespace BeachAula4.Api;
 
 public sealed record CriarClienteRequest(
-    string Name,
-    string Email,
-    string Phone,
-    TipoCliente Tipo = TipoCliente.Avulso);
+    string Nome,
+    [property: JsonPropertyName("cpf")] string CPF,
+    [property: JsonPropertyName("telefone")] string Fone,
+    string? Email = null);
 
-public sealed record CriarQuadraRequest(string Name);
+public sealed record CriarQuadraRequest(string Nome);
 
 public sealed record CriarReservaRequest(
     int ClienteId,
     int QuadraId,
+    TipoCliente? TipoCliente,
     DateTimeOffset Inicio,
     DateTimeOffset Fim);
+
+public sealed record LoginRequest(string Email, string Senha);

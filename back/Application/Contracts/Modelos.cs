@@ -7,21 +7,42 @@ public sealed record ConfiguracaoReservas(
     int DuracaoMinimaMinutos,
     int DuracaoMaximaMinutos,
     int PassoMinutos,
-    decimal DescontoAssociado,
-    decimal DescontoProfessor,
+    decimal DescontoSocio,
+    decimal DescontoAluno,
     string FusoHorario);
+
+public sealed record ConfiguracaoAutenticacao(
+    string NomeGestor,
+    string EmailGestor,
+    string SenhaGestor);
 
 public sealed record HorarioDia(TimeOnly Abertura, TimeOnly Fechamento);
 
-public sealed record ClienteDto(
-    int Id,
-    string Name,
-    string Email,
-    string Phone,
-    TipoCliente Tipo,
-    bool Ativo);
+public sealed record ClienteDto
+{
+    public int Id { get; init; }
+    public string Nome { get; init; } = string.Empty;
+    [System.Text.Json.Serialization.JsonPropertyName("cpf")]
+    public string CPF { get; init; } = string.Empty;
+    [System.Text.Json.Serialization.JsonPropertyName("telefone")]
+    public string Fone { get; init; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
+    public bool Ativo { get; init; }
 
-public sealed record QuadraDto(int Id, string Name, bool Ativa);
+    public ClienteDto(int id, string nome, string cpf, string fone, string email, bool ativo)
+    {
+        Id = id;
+        Nome = nome;
+        CPF = cpf;
+        Fone = fone;
+        Email = email;
+        Ativo = ativo;
+    }
+}
+
+public sealed record QuadraDto(int Id, string Nome, bool Ativa);
+
+public sealed record UsuarioDto(int Id, string Nome, string Email, string Perfil);
 
 public sealed record ReservaDto(
     int Id,

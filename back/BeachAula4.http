@@ -1,32 +1,101 @@
 @BeachAula4_HostAddress = http://localhost:5289
-@BookingDate = 2026-10-06
+@BookingDate = 2026-10-23
+@ClienteId = 1
+@QuadraId = 1
 
-### Register a customer
+### Demo manager login (local proof of concept only)
+POST {{BeachAula4_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "gestor@beachtennis.local",
+  "senha": "demo1234"
+}
+
+### List courts
+GET {{BeachAula4_HostAddress}}/api/quadras
+Accept: application/json
+
+### Create a court
+POST {{BeachAula4_HostAddress}}/api/quadras
+Content-Type: application/json
+
+{
+  "nome": "Quadra teste"
+}
+
+### Register a customer (CPF must be unique)
 POST {{BeachAula4_HostAddress}}/api/clientes
 Content-Type: application/json
 
 {
-  "name": "Simon Tsui",
-  "email": "simon@example.com",
-  "phone": "+55 11 99999-9999",
-  "tipo": "Associado"
+  "nome": "Maria Silva",
+  "cpf": "52998224725",
+  "telefone": "51999990001",
+  "email": "maria@example.com"
 }
 
-### List courts (the local database already contains courts 1-4)
-GET {{BeachAula4_HostAddress}}/api/quadras
+### List customers
+GET {{BeachAula4_HostAddress}}/api/clientes
 Accept: application/json
 
-### Check availability and prices for an associate
-GET {{BeachAula4_HostAddress}}/api/quadras/1/disponibilidade?data={{BookingDate}}&duracaoMinutos=60&tipoCliente=Associado
+### Find a customer by CPF
+GET {{BeachAula4_HostAddress}}/api/clientes?cpf=52998224725
 Accept: application/json
 
-### Create and immediately confirm a reservation
+### Check 60-minute availability
+GET {{BeachAula4_HostAddress}}/api/quadras/{{QuadraId}}/disponibilidade?data={{BookingDate}}&duracaoMinutos=60
+Accept: application/json
+
+### Check 90-minute availability
+GET {{BeachAula4_HostAddress}}/api/quadras/{{QuadraId}}/disponibilidade?data={{BookingDate}}&duracaoMinutos=90
+Accept: application/json
+
+### Create and immediately confirm a reservation (Padrao=0, Socio=1, Aluno=2)
 POST {{BeachAula4_HostAddress}}/api/reservas
 Content-Type: application/json
 
 {
-  "clienteId": 1,
-  "quadraId": 1,
+  "clienteId": {{ClienteId}},
+  "quadraId": {{QuadraId}},
+  "tipoCliente": 0,
   "inicio": "{{BookingDate}}T10:00:00-03:00",
-  "fim": "{{BookingDate}}T11:00:00-03:00"
+  "fim": "{{BookingDate}}T11:30:00-03:00"
 }
+
+### List reservations for a day
+GET {{BeachAula4_HostAddress}}/api/reservas?data={{BookingDate}}
+Accept: application/json
+
+### List reservations for one customer
+GET {{BeachAula4_HostAddress}}/api/reservas?clienteId={{ClienteId}}
+Accept: application/json
+
+### Cancel a future reservation (replace the ID)
+POST {{BeachAula4_HostAddress}}/api/reservas/1/cancelamento
+
+### Validation check: missing required customer name (expected 422)
+POST {{BeachAula4_HostAddress}}/api/clientes
+Content-Type: application/json
+
+{
+  "nome": "   ",
+  "cpf": "52998224725",
+  "telefone": "51999990001"
+}
+
+### Validation check: letters are not accepted in a phone number (expected 422)
+POST {{BeachAula4_HostAddress}}/api/clientes
+Content-Type: application/json
+
+{
+  "nome": "Maria Silva",
+  "cpf": "52998224725",
+  "telefone": "51abc99990001"
+}
+
+### Validation check: non-numeric CPF input is rejected (expected 422)
+GET {{BeachAula4_HostAddress}}/api/clientes?cpf=529abc24725
+
+### Validation check: unsupported customer type is rejected (expected 422)
+GET {{BeachAula4_HostAddress}}/api/quadras/{{QuadraId}}/disponibilidade?data={{BookingDate}}&duracaoMinutos=60&tipoCliente=99

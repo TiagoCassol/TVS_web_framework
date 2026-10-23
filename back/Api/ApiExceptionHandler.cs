@@ -16,6 +16,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             ValidacaoException => (StatusCodes.Status422UnprocessableEntity, "Regra de negócio não atendida"),
             NaoEncontradoException => (StatusCodes.Status404NotFound, "Recurso não encontrado"),
             ConflitoException => (StatusCodes.Status409Conflict, "Conflito"),
+            BadHttpRequestException badRequest => (badRequest.StatusCode, "Requisição inválida"),
+            System.Text.Json.JsonException => (StatusCodes.Status400BadRequest, "JSON inválido"),
             ArgumentException => (StatusCodes.Status400BadRequest, "Requisição inválida"),
             _ => (0, string.Empty)
         };

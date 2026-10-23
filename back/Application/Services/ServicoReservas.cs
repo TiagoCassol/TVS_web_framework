@@ -3,6 +3,7 @@ using BeachTennis.Application.Errors;
 using BeachTennis.Application.Interfaces;
 using BeachTennis.Domain.Entities;
 using BeachTennis.Domain.Enums;
+using BeachTennis.Domain.Validation;
 
 namespace BeachTennis.Application.Services;
 
@@ -19,30 +20,54 @@ public sealed class ServicoReservas(
         TimeZoneInfo.FindSystemTimeZoneById(calculadora.Configuracao.FusoHorario);
 
     public async Task<ClienteDto> RegistrarClienteAsync(
-        string name,
-        string email,
-        string phone,
-        TipoCliente tipo,
+        string nome,
+        string cpf,
+        string fone,
+        string? email,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(email))
-            throw new ValidacaoException("O e-mail do cliente é obrigatório.");
-        if (await clientes.EmailExisteAsync(email.Trim(), cancellationToken))
-            throw new ConflitoException("Já existe um cliente cadastrado com este e-mail.");
-
         Cliente cliente;
         try
         {
-            cliente = Cliente.Criar(name, email, phone, tipo);
+            cliente = Cliente.Criar(nome, cpf, fone, email);
         }
         catch (ArgumentException exception)
         {
             throw new ValidacaoException(exception.Message);
         }
 
+        if (await clientes.CpfExisteAsync(cliente.CPF!, cancellationToken))
+            throw new ConflitoException("Já existe um cliente cadastrado com este CPF.");
+        if (cliente.Email.Length > 0 && await clientes.EmailExisteAsync(cliente.Email, cancellationToken))
+            throw new ConflitoException("Já existe um cliente cadastrado com este e-mail.");
+
         await clientes.AdicionarAsync(cliente, cancellationToken);
         await unitOfWork.SalvarAlteracoesAsync(cancellationToken);
         return ToDto(cliente);
+    }
+
+    public async Task<IReadOnlyList<ClienteDto>> ListarClientesAsync(
+        string? cpf,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(cpf))
+        {
+            var todos = await clientes.ListarAsync(cancellationToken);
+            return todos.Select(ToDto).ToArray();
+        }
+
+        string cpfNormalizado;
+        try
+        {
+            cpfNormalizado = NormalizadorEntrada.NormalizarCpf(cpf);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ValidacaoException(exception.Message);
+        }
+
+        var cliente = await clientes.ObterPorCpfAsync(cpfNormalizado, cancellationToken);
+        return cliente is null ? [] : [ToDto(cliente)];
     }
 
     public async Task<ClienteDto> ObterClienteAsync(int id, CancellationToken cancellationToken)
@@ -52,12 +77,12 @@ public sealed class ServicoReservas(
         return ToDto(cliente);
     }
 
-    public async Task<QuadraDto> RegistrarQuadraAsync(string name, CancellationToken cancellationToken)
+    public async Task<QuadraDto> RegistrarQuadraAsync(string nome, CancellationToken cancellationToken)
     {
         Quadra quadra;
         try
         {
-            quadra = Quadra.Criar(name);
+            quadra = Quadra.Criar(nome);
         }
         catch (ArgumentException exception)
         {
@@ -78,10 +103,16 @@ public sealed class ServicoReservas(
     public async Task<ReservaDto> CriarReservaAsync(
         int clienteId,
         int quadraId,
+        TipoCliente tipoCliente,
         DateTimeOffset inicio,
         DateTimeOffset fim,
         CancellationToken cancellationToken)
     {
+        if (clienteId <= 0)
+            throw new ValidacaoException("O clienteId deve ser maior que zero.");
+        if (quadraId <= 0)
+            throw new ValidacaoException("O quadraId deve ser maior que zero.");
+        ValidarTipoCliente(tipoCliente);
         var cliente = await clientes.ObterPorIdAsync(clienteId, cancellationToken)
             ?? throw new NaoEncontradoException($"Cliente {clienteId} não encontrado.");
         if (!cliente.Ativo)
@@ -107,7 +138,7 @@ public sealed class ServicoReservas(
         if (await reservas.ExisteConflitoAsync(quadraId, inicioLocal, fimLocal, cancellationToken))
             throw new ConflitoException("A quadra já possui uma reserva neste intervalo.");
 
-        var valores = calculadora.Calcular(fimLocal - inicioLocal, cliente.Tipo);
+        var valores = calculadora.Calcular(fimLocal - inicioLocal, tipoCliente);
         var criadaEm = timeProvider.GetUtcNow();
         var reserva = Reserva.Criar(
             clienteId,
@@ -129,6 +160,7 @@ public sealed class ServicoReservas(
         TipoCliente tipoCliente,
         CancellationToken cancellationToken)
     {
+        ValidarTipoCliente(tipoCliente);
         var quadra = await quadras.ObterPorIdAsync(quadraId, cancellationToken)
             ?? throw new NaoEncontradoException($"Quadra {quadraId} não encontrada.");
         if (!quadra.Ativa)
@@ -196,6 +228,35 @@ public sealed class ServicoReservas(
         return itens.Select(ToDto).ToArray();
     }
 
+    public async Task<IReadOnlyList<ReservaDto>> ListarReservasAsync(
+        DateOnly? data,
+        int? clienteId,
+        CancellationToken cancellationToken)
+    {
+        if (data is null && clienteId is null)
+            throw new ValidacaoException("Informe a data ou o clienteId para consultar reservas.");
+        if (data == DateOnly.MaxValue)
+            throw new ValidacaoException("A data informada está fora do intervalo permitido.");
+        if (clienteId is <= 0)
+            throw new ValidacaoException("O clienteId deve ser maior que zero.");
+        if (clienteId.HasValue &&
+            await clientes.ObterPorIdAsync(clienteId.Value, cancellationToken) is null)
+        {
+            throw new NaoEncontradoException($"Cliente {clienteId} não encontrado.");
+        }
+
+        DateTimeOffset? inicio = null;
+        DateTimeOffset? fim = null;
+        if (data is { } dataReserva)
+        {
+            inicio = CriarHorarioLocal(dataReserva, TimeOnly.MinValue);
+            fim = CriarHorarioLocal(dataReserva.AddDays(1), TimeOnly.MinValue);
+        }
+
+        var itens = await reservas.ListarAsync(inicio, fim, clienteId, cancellationToken);
+        return itens.Select(ToDto).ToArray();
+    }
+
     public async Task<ReservaDto> CancelarReservaAsync(int id, CancellationToken cancellationToken)
     {
         var reserva = await reservas.ObterPorIdAsync(id, cancellationToken)
@@ -255,6 +316,12 @@ public sealed class ServicoReservas(
         }
     }
 
+    private static void ValidarTipoCliente(TipoCliente tipoCliente)
+    {
+        if (!Enum.IsDefined(tipoCliente))
+            throw new ValidacaoException("O tipo de cliente é inválido.");
+    }
+
     private DateTimeOffset CriarHorarioLocal(DateOnly data, TimeOnly horario)
     {
         var dataHoraLocal = DateTime.SpecifyKind(data.ToDateTime(horario), DateTimeKind.Unspecified);
@@ -268,10 +335,16 @@ public sealed class ServicoReservas(
     }
 
     private static ClienteDto ToDto(Cliente cliente) =>
-        new(cliente.Id, cliente.Name, cliente.Email, cliente.Phone, cliente.Tipo, cliente.Ativo);
+        new(
+            cliente.Id,
+            cliente.Nome,
+            cliente.CPF ?? string.Empty,
+            cliente.Fone,
+            cliente.Email,
+            cliente.Ativo);
 
     private static QuadraDto ToDto(Quadra quadra) =>
-        new(quadra.Id, quadra.Name, quadra.Ativa);
+        new(quadra.Id, quadra.Nome, quadra.Ativa);
 
     private static ReservaDto ToDto(Reserva reserva) =>
         new(
@@ -285,4 +358,5 @@ public sealed class ServicoReservas(
             reserva.Desconto,
             reserva.ValorFinal,
             reserva.CriadaEm);
+
 }

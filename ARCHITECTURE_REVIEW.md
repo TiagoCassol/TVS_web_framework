@@ -371,4 +371,3 @@ Cobrir pelo menos:
 8. Corrigir o DTO de cliente.
 9. Relacionar pagamento diretamente à reserva.
 10. Criar testes automatizados antes de integrar um gateway real.
-

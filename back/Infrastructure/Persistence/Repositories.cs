@@ -11,6 +11,15 @@ public sealed class ClienteRepository(AppDbContext db) : IClienteRepository
     public Task<Cliente?> ObterPorIdAsync(int id, CancellationToken cancellationToken) =>
         db.Clientes.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public Task<Cliente?> ObterPorCpfAsync(string cpf, CancellationToken cancellationToken) =>
+        db.Clientes.AsNoTracking().SingleOrDefaultAsync(x => x.CPF == cpf, cancellationToken);
+
+    public async Task<IReadOnlyList<Cliente>> ListarAsync(CancellationToken cancellationToken) =>
+        await db.Clientes.AsNoTracking().OrderBy(x => x.Nome).ToArrayAsync(cancellationToken);
+
+    public Task<bool> CpfExisteAsync(string cpf, CancellationToken cancellationToken) =>
+        db.Clientes.AnyAsync(x => x.CPF == cpf, cancellationToken);
+
     public Task<bool> EmailExisteAsync(string email, CancellationToken cancellationToken)
     {
         var normalizado = email.Trim().ToLowerInvariant();
@@ -74,6 +83,23 @@ public sealed class ReservaRepository(AppDbContext db) : IReservaRepository
                 inicio < r.Fim &&
                 fim > r.Inicio)
             .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Reserva>> ListarAsync(
+        DateTimeOffset? inicio,
+        DateTimeOffset? fim,
+        int? clienteId,
+        CancellationToken cancellationToken)
+    {
+        var consulta = db.Reservas.AsNoTracking().AsQueryable();
+        if (inicio.HasValue)
+            consulta = consulta.Where(r => r.Inicio >= inicio.Value);
+        if (fim.HasValue)
+            consulta = consulta.Where(r => r.Inicio < fim.Value);
+        if (clienteId.HasValue)
+            consulta = consulta.Where(r => r.ClienteId == clienteId.Value);
+
+        return await consulta.OrderBy(r => r.Inicio).ToArrayAsync(cancellationToken);
+    }
 
     public async Task AdicionarAsync(Reserva reserva, CancellationToken cancellationToken)
     {

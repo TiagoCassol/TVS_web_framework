@@ -14,8 +14,10 @@ public sealed class CalculadoraPreco
             config.DuracaoMinimaMinutos <= 0 ||
             config.DuracaoMaximaMinutos < config.DuracaoMinimaMinutos ||
             config.PassoMinutos <= 0 ||
-            config.DescontoAssociado is < 0 or > 1 ||
-            config.DescontoProfessor is < 0 or > 1)
+            config.DuracaoMinimaMinutos % config.PassoMinutos != 0 ||
+            config.DuracaoMaximaMinutos % config.PassoMinutos != 0 ||
+            config.DescontoSocio is < 0 or > 1 ||
+            config.DescontoAluno is < 0 or > 1)
         {
             throw new InvalidOperationException("A configuração de reservas contém valores inválidos.");
         }
@@ -37,9 +39,9 @@ public sealed class CalculadoraPreco
             MidpointRounding.AwayFromZero);
         var percentualDesconto = tipoCliente switch
         {
-            TipoCliente.Associado => _config.DescontoAssociado,
-            TipoCliente.Professor => _config.DescontoProfessor,
-            TipoCliente.Avulso => 0m,
+            TipoCliente.Socio => _config.DescontoSocio,
+            TipoCliente.Aluno => _config.DescontoAluno,
+            TipoCliente.Padrao => 0m,
             _ => throw new ValidacaoException("O tipo de cliente é inválido.")
         };
         var desconto = decimal.Round(

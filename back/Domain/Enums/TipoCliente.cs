@@ -2,7 +2,7 @@ namespace BeachTennis.Domain.Enums;
 
 public enum TipoCliente
 {
-    Avulso = 1,
-    Associado = 2,
-    Professor = 3
+    Padrao = 0,
+    Socio = 1,
+    Aluno = 2
 }
