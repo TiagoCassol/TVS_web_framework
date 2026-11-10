@@ -11,19 +11,33 @@ public sealed class ClienteRepository(AppDbContext db) : IClienteRepository
     public Task<Cliente?> ObterPorIdAsync(int id, CancellationToken cancellationToken) =>
         db.Clientes.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public Task<Cliente?> ObterParaAtualizarAsync(int id, CancellationToken cancellationToken) =>
+        db.Clientes.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+
     public Task<Cliente?> ObterPorCpfAsync(string cpf, CancellationToken cancellationToken) =>
         db.Clientes.AsNoTracking().SingleOrDefaultAsync(x => x.CPF == cpf, cancellationToken);
 
     public async Task<IReadOnlyList<Cliente>> ListarAsync(CancellationToken cancellationToken) =>
         await db.Clientes.AsNoTracking().OrderBy(x => x.Nome).ToArrayAsync(cancellationToken);
 
-    public Task<bool> CpfExisteAsync(string cpf, CancellationToken cancellationToken) =>
-        db.Clientes.AnyAsync(x => x.CPF == cpf, cancellationToken);
+    public Task<bool> CpfExisteAsync(
+        string cpf,
+        int? ignorarClienteId,
+        CancellationToken cancellationToken) =>
+        db.Clientes.AnyAsync(
+            x => x.CPF == cpf && (!ignorarClienteId.HasValue || x.Id != ignorarClienteId.Value),
+            cancellationToken);
 
-    public Task<bool> EmailExisteAsync(string email, CancellationToken cancellationToken)
+    public Task<bool> EmailExisteAsync(
+        string email,
+        int? ignorarClienteId,
+        CancellationToken cancellationToken)
     {
         var normalizado = email.Trim().ToLowerInvariant();
-        return db.Clientes.AnyAsync(x => x.Email == normalizado, cancellationToken);
+        return db.Clientes.AnyAsync(
+            x => x.Email == normalizado &&
+                 (!ignorarClienteId.HasValue || x.Id != ignorarClienteId.Value),
+            cancellationToken);
     }
 
     public async Task AdicionarAsync(Cliente cliente, CancellationToken cancellationToken)
@@ -52,10 +66,12 @@ public sealed class ReservaRepository(AppDbContext db) : IReservaRepository
         int quadraId,
         DateTimeOffset inicio,
         DateTimeOffset fim,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        int? ignorarReservaId = null) =>
         db.Reservas.AsNoTracking().AnyAsync(r =>
             r.QuadraId == quadraId &&
             r.Status == StatusReserva.Confirmada &&
+            (!ignorarReservaId.HasValue || r.Id != ignorarReservaId.Value) &&
             inicio < r.Fim &&
             fim > r.Inicio,
             cancellationToken);

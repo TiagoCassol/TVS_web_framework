@@ -6,10 +6,11 @@ namespace BeachTennis.Application.Interfaces;
 public interface IClienteRepository
 {
     Task<Cliente?> ObterPorIdAsync(int id, CancellationToken cancellationToken);
+    Task<Cliente?> ObterParaAtualizarAsync(int id, CancellationToken cancellationToken);
     Task<Cliente?> ObterPorCpfAsync(string cpf, CancellationToken cancellationToken);
     Task<IReadOnlyList<Cliente>> ListarAsync(CancellationToken cancellationToken);
-    Task<bool> CpfExisteAsync(string cpf, CancellationToken cancellationToken);
-    Task<bool> EmailExisteAsync(string email, CancellationToken cancellationToken);
+    Task<bool> CpfExisteAsync(string cpf, int? ignorarClienteId, CancellationToken cancellationToken);
+    Task<bool> EmailExisteAsync(string email, int? ignorarClienteId, CancellationToken cancellationToken);
     Task AdicionarAsync(Cliente cliente, CancellationToken cancellationToken);
 }
 
@@ -26,7 +27,8 @@ public interface IReservaRepository
         int quadraId,
         DateTimeOffset inicio,
         DateTimeOffset fim,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        int? ignorarReservaId = null);
     Task<Reserva?> ObterPorIdAsync(int id, CancellationToken cancellationToken);
     Task<IReadOnlyList<Reserva>> ListarPorClienteAsync(int clienteId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Reserva>> ListarPorQuadraEPeriodoAsync(

@@ -58,4 +58,33 @@ public sealed class Reserva
 
         Status = StatusReserva.Cancelada;
     }
+
+    public void Atualizar(
+        int clienteId,
+        int quadraId,
+        DateTimeOffset inicio,
+        DateTimeOffset fim,
+        decimal valorBruto,
+        decimal desconto,
+        DateTimeOffset agora)
+    {
+        if (Status != StatusReserva.Confirmada)
+            throw new InvalidOperationException("Somente reservas confirmadas podem ser alteradas.");
+        if (Inicio <= agora)
+            throw new InvalidOperationException("Reservas que já começaram não podem ser alteradas.");
+        if (clienteId <= 0 || quadraId <= 0)
+            throw new ArgumentException("O cliente e a quadra informados são inválidos.");
+        if (fim <= inicio)
+            throw new ArgumentException("O horário final deve ser posterior ao horário inicial.");
+        if (valorBruto < 0 || desconto < 0 || desconto > valorBruto)
+            throw new ArgumentException("Os valores da reserva são inválidos.");
+
+        ClienteId = clienteId;
+        QuadraId = quadraId;
+        Inicio = inicio;
+        Fim = fim;
+        ValorBruto = decimal.Round(valorBruto, 2, MidpointRounding.AwayFromZero);
+        Desconto = decimal.Round(desconto, 2, MidpointRounding.AwayFromZero);
+        ValorFinal = decimal.Round(valorBruto - desconto, 2, MidpointRounding.AwayFromZero);
+    }
 }

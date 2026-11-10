@@ -50,15 +50,23 @@ The local demonstration login is `gestor@beachtennis.local` / `demo1234`, config
 | --- | --- | --- |
 | POST | `/api/auth/login` | Validate `{ email, senha }` and return `{ id, nome, email, perfil }` |
 | POST | `/api/clientes` | Register a customer |
+| PUT | `/api/clientes/{id}` | Replace customer data `{ nome, cpf, telefone, email?, ativo }` |
+| DELETE | `/api/clientes/{id}` | Deactivate a customer without deleting booking history |
 | GET | `/api/clientes/{id}` | Get a customer |
-| GET | `/api/clientes` | List customers |
+| GET | `/api/clientes` | List customers, including inactive customers |
 | GET | `/api/clientes?cpf=00000000000` | Find a customer by CPF (empty array if not found) |
 | POST | `/api/quadras` | Register a court using `{ nome }` |
-| GET | `/api/quadras` | List courts |
+| PUT | `/api/quadras/{id}` | Replace court data `{ nome, ativa }` |
+| DELETE | `/api/quadras/{id}` | Deactivate a court without deleting booking history |
+| GET | `/api/quadras/{id}` | Get a court |
+| GET | `/api/quadras` | List all courts |
 | GET | `/api/quadras/{quadraId}/disponibilidade?data=2026-10-23` | List time slots |
 | POST | `/api/reservas` | Create and immediately confirm a booking |
+| PUT | `/api/reservas/{id}` | Reschedule a future confirmed booking and recalculate its price |
+| DELETE | `/api/reservas/{id}` | Cancel a future confirmed booking without deleting history |
 | GET | `/api/reservas/{id}` | Get a booking |
-| GET | `/api/reservas?data=2026-10-23&clienteId=1` | List bookings for a day, optionally filtered by customer |
+| GET | `/api/reservas` | List all bookings |
+| GET | `/api/reservas?data=2026-10-23&clienteId=1` | Filter bookings by day and/or customer |
 | POST | `/api/reservas/{id}/cancelamento` | Cancel a future confirmed booking |
 
 Request examples:
@@ -82,11 +90,11 @@ Request examples:
 }
 ```
 
-Bookings are confirmed as soon as they are created; there is no payment or pending-payment state. A confirmed court/time slot is blocked until the reservation is cancelled. Cancellation is allowed only before the reservation starts. Same-day availability omits time slots that have already passed. A successful create response (`201 Created`) is the confirmation for this proof of concept; it does not send email or SMS. Responses use `ProblemDetails`; invalid business rules return 422, missing resources 404, and duplicate bookings 409.
+Bookings are confirmed as soon as they are created; there is no payment or pending-payment state. A confirmed court/time slot is blocked until the reservation is cancelled. Cancellation and rescheduling are allowed only before the reservation starts. Reservation updates validate the customer, court, opening hours, duration, and conflicts again, and recalculate prices. DELETE on a reservation is a soft delete (cancellation); DELETE on a customer or court deactivates it. PUT on a customer or court accepts the `ativo`/`ativa` field to support reactivation. Existing bookings are preserved when a customer or court is deactivated. Same-day availability omits time slots that have already passed. A successful create response (`201 Created`) is the confirmation for this proof of concept; it does not send email or SMS. Responses use `ProblemDetails`; invalid business rules return 422, malformed requests 400, missing resources 404, and duplicate CPF/e-mail or booking conflicts 409.
 
 Customer CPF must be valid and unique. Phone must contain 10 or 11 digits; e-mail is optional. The API accepts formatted or digits-only phone/CPF, and returns only digits. Legacy customers without CPF remain in the database and are returned with an empty CPF until updated.
 
-`GET /api/reservas` requires at least one filter (`data` and/or `clienteId`). The time-slot duration defaults to 60 minutes and can be requested with `duracaoMinutos=60`, `90`, or `120`. The booking request must include `tipoCliente` using the front-end numeric values: `Padrao=0`, `Socio=1`, `Aluno=2`.
+`GET /api/reservas` returns all bookings when no filters are specified. The optional filters `data` and `clienteId` can be used together. The time-slot duration defaults to 60 minutes and can be requested with `duracaoMinutos=60`, `90`, or `120`. The booking request must include `tipoCliente` using the front-end numeric values: `Padrao=0`, `Socio=1`, `Aluno=2`.
 
 ## Integration boundary
 

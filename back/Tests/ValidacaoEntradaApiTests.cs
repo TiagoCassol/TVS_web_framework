@@ -189,6 +189,173 @@ public sealed class ValidacaoEntradaApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
     }
 
+    [Fact]
+    public async Task LoginDeDemonstracaoRetornaUsuarioEsperado()
+    {
+        var resposta = await _cliente.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "gestor@beachtennis.local",
+            senha = "demo1234"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+        using var documento = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+        Assert.Equal("Gestor", documento.RootElement.GetProperty("perfil").GetString());
+    }
+
+    [Fact]
+    public async Task ClientePodeSerConsultadoAtualizadoDesativadoEReativado()
+    {
+        var cliente = await CriarClienteAsync("Cliente CRUD");
+        var url = $"/api/clientes/{cliente.Id}";
+        var consulta = await _cliente.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, consulta.StatusCode);
+
+        var atualizacao = await _cliente.PutAsJsonAsync(url, new
+        {
+            nome = "  Cliente   Atualizado ",
+            cpf = cliente.Cpf,
+            telefone = cliente.Telefone,
+            email = cliente.Email,
+            ativo = false
+        });
+        Assert.Equal(HttpStatusCode.OK, atualizacao.StatusCode);
+        using (var documento = JsonDocument.Parse(await atualizacao.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("Cliente Atualizado", documento.RootElement.GetProperty("nome").GetString());
+            Assert.False(documento.RootElement.GetProperty("ativo").GetBoolean());
+        }
+
+        var exclusao = await _cliente.DeleteAsync(url);
+        Assert.Equal(HttpStatusCode.NoContent, exclusao.StatusCode);
+
+        var reativacao = await _cliente.PutAsJsonAsync(url, new
+        {
+            nome = "Cliente Atualizado",
+            cpf = cliente.Cpf,
+            telefone = cliente.Telefone,
+            email = cliente.Email,
+            ativo = true
+        });
+        Assert.Equal(HttpStatusCode.OK, reativacao.StatusCode);
+        using var reativado = JsonDocument.Parse(await reativacao.Content.ReadAsStringAsync());
+        Assert.True(reativado.RootElement.GetProperty("ativo").GetBoolean());
+    }
+
+    [Fact]
+    public async Task AtualizacaoDeClienteRejeitaCpfDuplicadoSemAlterarRegistro()
+    {
+        var primeiro = await CriarClienteAsync("Cliente Primeiro");
+        var segundo = await CriarClienteAsync("Cliente Segundo");
+        var resposta = await _cliente.PutAsJsonAsync($"/api/clientes/{segundo.Id}", new
+        {
+            nome = "Cliente Modificado",
+            cpf = primeiro.Cpf,
+            telefone = segundo.Telefone,
+            email = segundo.Email,
+            ativo = true
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+        var consulta = await _cliente.GetAsync($"/api/clientes/{segundo.Id}");
+        using var documento = JsonDocument.Parse(await consulta.Content.ReadAsStringAsync());
+        Assert.Equal("Cliente Segundo", documento.RootElement.GetProperty("nome").GetString());
+        Assert.Equal(segundo.Cpf, documento.RootElement.GetProperty("cpf").GetString());
+    }
+
+    [Fact]
+    public async Task QuadraPodeSerConsultadaAtualizadaDesativadaEReativada()
+    {
+        var quadra = await CriarQuadraAsync();
+        var url = $"/api/quadras/{quadra.Id}";
+        Assert.Equal(HttpStatusCode.OK, (await _cliente.GetAsync(url)).StatusCode);
+
+        var atualizacao = await _cliente.PutAsJsonAsync(url, new { nome = "  Quadra   Atualizada ", ativa = false });
+        Assert.Equal(HttpStatusCode.OK, atualizacao.StatusCode);
+        using (var documento = JsonDocument.Parse(await atualizacao.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("Quadra Atualizada", documento.RootElement.GetProperty("nome").GetString());
+            Assert.False(documento.RootElement.GetProperty("ativa").GetBoolean());
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await _cliente.DeleteAsync(url)).StatusCode);
+        var reativacao = await _cliente.PutAsJsonAsync(url, new { nome = "Quadra Atualizada", ativa = true });
+        Assert.Equal(HttpStatusCode.OK, reativacao.StatusCode);
+        using var reativada = JsonDocument.Parse(await reativacao.Content.ReadAsStringAsync());
+        Assert.True(reativada.RootElement.GetProperty("ativa").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ReservaPodeSerConsultadaReagendadaEExcluidaSemApagarHistorico()
+    {
+        var quadra = await CriarQuadraAsync();
+        var cliente = await CriarClienteAsync("Cliente Reserva");
+        var clienteAlternativo = await CriarClienteAsync("Cliente Alternativo");
+        var data = DateOnly.FromDateTime(DateTime.Today.AddDays(30));
+        var reserva = await CriarReservaAsync(cliente.Id, quadra.Id, data, new TimeOnly(10, 0));
+        var ocupanteDoDestino = await CriarReservaAsync(
+            clienteAlternativo.Id,
+            quadra.Id,
+            data,
+            new TimeOnly(12, 0));
+
+        Assert.Equal(HttpStatusCode.OK, (await _cliente.GetAsync($"/api/reservas/{reserva.Id}")).StatusCode);
+        var lista = await _cliente.GetFromJsonAsync<JsonElement[]>("/api/reservas");
+        Assert.Contains(lista!, item => item.GetProperty("id").GetInt32() == reserva.Id);
+
+        var semAlteracao = await _cliente.PutAsJsonAsync($"/api/reservas/{reserva.Id}", new
+        {
+            clienteId = cliente.Id,
+            quadraId = quadra.Id,
+            tipoCliente = 0,
+            inicio = Horario(data, new TimeOnly(10, 0)),
+            fim = Horario(data, new TimeOnly(11, 0))
+        });
+        Assert.Equal(HttpStatusCode.OK, semAlteracao.StatusCode);
+
+        var destinoEmConflito = await _cliente.PutAsJsonAsync($"/api/reservas/{reserva.Id}", new
+        {
+            clienteId = clienteAlternativo.Id,
+            quadraId = quadra.Id,
+            tipoCliente = 1,
+            inicio = Horario(data, new TimeOnly(12, 0)),
+            fim = Horario(data, new TimeOnly(13, 0))
+        });
+        Assert.Equal(HttpStatusCode.Conflict, destinoEmConflito.StatusCode);
+
+        var reagendamentoData = data.AddDays(1);
+        var reagendamento = await _cliente.PutAsJsonAsync($"/api/reservas/{reserva.Id}", new
+        {
+            clienteId = clienteAlternativo.Id,
+            quadraId = quadra.Id,
+            tipoCliente = 1,
+            inicio = Horario(reagendamentoData, new TimeOnly(14, 0)),
+            fim = Horario(reagendamentoData, new TimeOnly(15, 0))
+        });
+        Assert.Equal(HttpStatusCode.OK, reagendamento.StatusCode);
+        using (var documento = JsonDocument.Parse(await reagendamento.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(clienteAlternativo.Id, documento.RootElement.GetProperty("clienteId").GetInt32());
+            Assert.Equal("Confirmada", documento.RootElement.GetProperty("status").GetString());
+            Assert.Equal(80m, documento.RootElement.GetProperty("valorFinal").GetDecimal());
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await _cliente.DeleteAsync($"/api/reservas/{reserva.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await _cliente.DeleteAsync($"/api/reservas/{reserva.Id}")).StatusCode);
+        var consultaCancelada = await _cliente.GetFromJsonAsync<JsonElement>($"/api/reservas/{reserva.Id}");
+        Assert.Equal("Cancelada", consultaCancelada.GetProperty("status").GetString());
+        var edicaoCancelada = await _cliente.PutAsJsonAsync($"/api/reservas/{reserva.Id}", new
+        {
+            clienteId = cliente.Id,
+            quadraId = quadra.Id,
+            tipoCliente = 0,
+            inicio = Horario(data.AddDays(2), new TimeOnly(10, 0)),
+            fim = Horario(data.AddDays(2), new TimeOnly(11, 0))
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, edicaoCancelada.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _cliente.GetAsync($"/api/reservas/{ocupanteDoDestino.Id}")).StatusCode);
+    }
+
     [Theory]
     [InlineData("{\"clienteId\":0,\"quadraId\":1,\"tipoCliente\":0,\"inicio\":\"2030-01-01T10:00:00-03:00\",\"fim\":\"2030-01-01T11:00:00-03:00\"}")]
     [InlineData("{\"clienteId\":1,\"quadraId\":0,\"tipoCliente\":0,\"inicio\":\"2030-01-01T10:00:00-03:00\",\"fim\":\"2030-01-01T11:00:00-03:00\"}")]
@@ -233,4 +400,57 @@ public sealed class ValidacaoEntradaApiTests(ApiFactory factory) : IClassFixture
         var resto = (soma * 10) % 11;
         return resto == 10 ? 0 : resto;
     }
+
+    private async Task<(int Id, string Cpf, string Telefone, string Email)> CriarClienteAsync(string nome)
+    {
+        var cpf = CriarCpfValido();
+        var email = $"cliente-{Guid.NewGuid():N}@example.test";
+        var resposta = await _cliente.PostAsJsonAsync("/api/clientes", new
+        {
+            nome,
+            cpf,
+            telefone = "51999990001",
+            email
+        });
+        Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+        using var documento = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+        return (
+            documento.RootElement.GetProperty("id").GetInt32(),
+            cpf,
+            "51999990001",
+            email);
+    }
+
+    private async Task<(int Id, string Nome)> CriarQuadraAsync()
+    {
+        var nome = $"Quadra {Guid.NewGuid():N}";
+        var resposta = await _cliente.PostAsJsonAsync("/api/quadras", new { nome });
+        Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+        using var documento = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+        return (documento.RootElement.GetProperty("id").GetInt32(), nome);
+    }
+
+    private async Task<(int Id, DateTimeOffset Inicio)> CriarReservaAsync(
+        int clienteId,
+        int quadraId,
+        DateOnly data,
+        TimeOnly inicio)
+    {
+        var resposta = await _cliente.PostAsJsonAsync("/api/reservas", new
+        {
+            clienteId,
+            quadraId,
+            tipoCliente = 0,
+            inicio = Horario(data, inicio),
+            fim = Horario(data, inicio.AddHours(1))
+        });
+        Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+        using var documento = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+        return (
+            documento.RootElement.GetProperty("id").GetInt32(),
+            documento.RootElement.GetProperty("inicio").GetDateTimeOffset());
+    }
+
+    private static DateTimeOffset Horario(DateOnly data, TimeOnly horario) =>
+        new(data.ToDateTime(horario), TimeSpan.FromHours(-3));
 }

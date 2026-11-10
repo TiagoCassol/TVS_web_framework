@@ -23,4 +23,20 @@ public sealed class Cliente
             CPF = NormalizadorEntrada.NormalizarCpf(cpf)
         };
     }
+
+    public void Atualizar(string? nome, string? cpf, string? fone, string? email, bool ativo)
+    {
+        var nomeNormalizado = NormalizadorEntrada.NormalizarNome(nome, "nome");
+        var cpfNormalizado = NormalizadorEntrada.NormalizarCpf(cpf);
+        var foneNormalizado = NormalizadorEntrada.NormalizarTelefone(fone);
+        var emailNormalizado = NormalizadorEntrada.NormalizarEmail(email);
+
+        Nome = nomeNormalizado;
+        CPF = cpfNormalizado;
+        Fone = foneNormalizado;
+        Email = emailNormalizado;
+        Ativo = ativo;
+    }
+
+    public void Desativar() => Ativo = false;
 }

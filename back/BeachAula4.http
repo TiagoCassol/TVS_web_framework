@@ -1,7 +1,8 @@
 @BeachAula4_HostAddress = http://localhost:5289
-@BookingDate = 2026-10-23
+@BookingDate = 2026-11-20
 @ClienteId = 1
 @QuadraId = 1
+@ReservaId = 1
 
 ### Demo manager login (local proof of concept only)
 POST {{BeachAula4_HostAddress}}/api/auth/login
@@ -24,6 +25,22 @@ Content-Type: application/json
   "nome": "Quadra teste"
 }
 
+### Get a court by ID
+GET {{BeachAula4_HostAddress}}/api/quadras/{{QuadraId}}
+Accept: application/json
+
+### Update a court (set ativa=false to deactivate, true to reactivate)
+PUT {{BeachAula4_HostAddress}}/api/quadras/{{QuadraId}}
+Content-Type: application/json
+
+{
+  "nome": "Quadra teste atualizada",
+  "ativa": true
+}
+
+### Deactivate a court without deleting reservations
+DELETE {{BeachAula4_HostAddress}}/api/quadras/{{QuadraId}}
+
 ### Register a customer (CPF must be unique)
 POST {{BeachAula4_HostAddress}}/api/clientes
 Content-Type: application/json
@@ -34,6 +51,25 @@ Content-Type: application/json
   "telefone": "51999990001",
   "email": "maria@example.com"
 }
+
+### Get a customer by ID
+GET {{BeachAula4_HostAddress}}/api/clientes/{{ClienteId}}
+Accept: application/json
+
+### Update a customer (active is required; set false to deactivate or true to reactivate)
+PUT {{BeachAula4_HostAddress}}/api/clientes/{{ClienteId}}
+Content-Type: application/json
+
+{
+  "nome": "Maria Silva",
+  "cpf": "52998224725",
+  "telefone": "51999990001",
+  "email": "maria@example.com",
+  "ativo": true
+}
+
+### Deactivate a customer without deleting reservations
+DELETE {{BeachAula4_HostAddress}}/api/clientes/{{ClienteId}}
 
 ### List customers
 GET {{BeachAula4_HostAddress}}/api/clientes
@@ -67,12 +103,35 @@ Content-Type: application/json
 GET {{BeachAula4_HostAddress}}/api/reservas?data={{BookingDate}}
 Accept: application/json
 
+### List all reservations
+GET {{BeachAula4_HostAddress}}/api/reservas
+Accept: application/json
+
 ### List reservations for one customer
 GET {{BeachAula4_HostAddress}}/api/reservas?clienteId={{ClienteId}}
 Accept: application/json
 
+### Get a reservation by ID
+GET {{BeachAula4_HostAddress}}/api/reservas/{{ReservaId}}
+Accept: application/json
+
+### Update/reschedule a future reservation
+PUT {{BeachAula4_HostAddress}}/api/reservas/{{ReservaId}}
+Content-Type: application/json
+
+{
+  "clienteId": {{ClienteId}},
+  "quadraId": {{QuadraId}},
+  "tipoCliente": 0,
+  "inicio": "{{BookingDate}}T12:00:00-03:00",
+  "fim": "{{BookingDate}}T13:00:00-03:00"
+}
+
+### Cancel a future reservation (soft delete; history is preserved)
+DELETE {{BeachAula4_HostAddress}}/api/reservas/{{ReservaId}}
+
 ### Cancel a future reservation (replace the ID)
-POST {{BeachAula4_HostAddress}}/api/reservas/1/cancelamento
+POST {{BeachAula4_HostAddress}}/api/reservas/{{ReservaId}}/cancelamento
 
 ### Validation check: missing required customer name (expected 422)
 POST {{BeachAula4_HostAddress}}/api/clientes

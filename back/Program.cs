@@ -88,6 +88,29 @@ api.MapPost("/clientes", async (
     return Results.Created($"/api/clientes/{cliente.Id}", cliente);
 });
 
+api.MapPut("/clientes/{id:int}", async (
+    int id,
+    AtualizarClienteRequest request,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await servico.AtualizarClienteAsync(
+        id,
+        request.Nome,
+        request.CPF,
+        request.Fone,
+        request.Email,
+        request.Ativo,
+        cancellationToken)));
+
+api.MapDelete("/clientes/{id:int}", async (
+    int id,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+{
+    await servico.DesativarClienteAsync(id, cancellationToken);
+    return Results.NoContent();
+});
+
 api.MapGet("/clientes/{id:int}", async (
     int id,
     ServicoReservas servico,
@@ -107,6 +130,32 @@ api.MapPost("/quadras", async (
 {
     var quadra = await servico.RegistrarQuadraAsync(request.Nome, cancellationToken);
     return Results.Created($"/api/quadras/{quadra.Id}", quadra);
+});
+
+api.MapGet("/quadras/{id:int}", async (
+    int id,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await servico.ObterQuadraAsync(id, cancellationToken)));
+
+api.MapPut("/quadras/{id:int}", async (
+    int id,
+    AtualizarQuadraRequest request,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await servico.AtualizarQuadraAsync(
+        id,
+        request.Nome,
+        request.Ativa,
+        cancellationToken)));
+
+api.MapDelete("/quadras/{id:int}", async (
+    int id,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+{
+    await servico.DesativarQuadraAsync(id, cancellationToken);
+    return Results.NoContent();
 });
 
 api.MapGet("/quadras", async (
@@ -148,6 +197,20 @@ api.MapPost("/reservas", async (
     return Results.Created($"/api/reservas/{reserva.Id}", reserva);
 });
 
+api.MapPut("/reservas/{id:int}", async (
+    int id,
+    AtualizarReservaRequest request,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await servico.AtualizarReservaAsync(
+        id,
+        request.ClienteId,
+        request.QuadraId,
+        request.TipoCliente,
+        request.Inicio,
+        request.Fim,
+        cancellationToken)));
+
 api.MapGet("/reservas/{id:int}", async (
     int id,
     ServicoReservas servico,
@@ -166,6 +229,15 @@ api.MapPost("/reservas/{id:int}/cancelamento", async (
     ServicoReservas servico,
     CancellationToken cancellationToken) =>
     Results.Ok(await servico.CancelarReservaAsync(id, cancellationToken)));
+
+api.MapDelete("/reservas/{id:int}", async (
+    int id,
+    ServicoReservas servico,
+    CancellationToken cancellationToken) =>
+{
+    await servico.ExcluirReservaAsync(id, cancellationToken);
+    return Results.NoContent();
+});
 
 app.Run();
 

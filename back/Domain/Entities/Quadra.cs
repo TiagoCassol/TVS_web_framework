@@ -12,4 +12,12 @@ public sealed class Quadra
 
     public static Quadra Criar(string nome) =>
         new() { Nome = NormalizadorEntrada.NormalizarNomeQuadra(nome) };
+
+    public void Atualizar(string? nome, bool ativa)
+    {
+        Nome = NormalizadorEntrada.NormalizarNomeQuadra(nome);
+        Ativa = ativa;
+    }
+
+    public void Desativar() => Ativa = false;
 }
